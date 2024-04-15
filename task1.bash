@@ -10,8 +10,13 @@ TOTAL_CPU=0
 TOTAL_MEM=0
 TOTAL_FILES=0
 
+HEADER=$(mktemp)
+REPORT=$(mktemp)
+
 # Header for the report
-printf "%-10s %-10s %-10s %-10s\n" "PID" "CPU(s)" "MEM(MB)" "FILES"
+printf "%-10s %-10s %-10s %-10s\n" "PID" "CPU(s)" "MEM(MB)" "FILES" > $HEADER
+
+# Loop through each user
 for USER in $USERS; do
     # Get the PIDs of all processes belonging to the user
     PIDS=$(pgrep -u $USER)
@@ -28,23 +33,32 @@ for USER in $USERS; do
 
         # Get the memory used by the process
         MEM=$(pmap $PID | tail -n 1 | awk '/total/ {print $2}' | sed 's/K//')
-        MEM=$(echo "scale=2; $MEM / 1024" | bc)
-        USER_MEM=$(echo "$USER_MEM + $MEM" | bc)
+        if [ -n "$MEM" ]; then
+            MEM=$(echo "scale=2; $MEM / 1024" | bc)
+            USER_MEM=$(echo "$USER_MEM + $MEM" | bc)
+        fi
 
+        
         # Get the number of open files by the process
         FILES=$(lsof -p $PID | wc -l)
         USER_FILES=$((USER_FILES + FILES))
     done
 
     # Print the total info
-    printf "%-10s %-10s %-10s %-10s\n" "$USER" "$USER_CPU" "$USER_MEM" "$USER_FILES"
+    printf "%-10s %-10s %-10s %-10s\n" "$USER" "$USER_CPU" "$USER_MEM" "$USER_FILES" >> $REPORT
 
     # Add the user's stats to the total stats
     TOTAL_CPU=$((TOTAL_CPU + USER_CPU))
-    TOTAL_MEM=$(echp "$TOTAL_MEM + $USER_MEM" | bc)
+    TOTAL_MEM=$(echo "$TOTAL_MEM + $USER_MEM" | bc)
     TOTAL_FILES=$((TOTAL_FILES + USER_FILES))
 done
 
-printf "%-10s %-10s %-10s %-10s\n" "TOTAL" "$TOTAL_CPU" "$TOTAL_MEM" "$TOTAL_FILES"
+# print the total info
+printf "%-10s %-10s %-10s %-10s\n" "TOTAL" "$TOTAL_CPU" "$TOTAL_MEM" "$TOTAL_FILES" >> $REPORT
 
-sort -k2 -nr
+# Sort the report in decending order according to CPU utilisation and display the results
+cat $HEADER <(sort -k2 -nr $REPORT)
+
+# Remove the temp files
+rm $HEADER
+rm $REPORT
