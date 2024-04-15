@@ -1,3 +1,5 @@
+# task1 coursework
+
 #! /usr/bin/bash
 
 # Replace 'username with the actual username'
